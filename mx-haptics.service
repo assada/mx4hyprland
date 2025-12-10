@@ -1,0 +1,16 @@
+[Unit]
+Description=MX Master Haptic Feedback Daemon
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ut3usw/mx4hyprland
+ExecStart=/home/ut3usw/.local/bin/uv run watch.py
+
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

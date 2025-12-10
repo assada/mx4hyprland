@@ -1,44 +1,75 @@
-# Setup udev rules
+# Installation Guide
 
-Copy udev rules file
+## 1\. Setup Udev Rules
 
-```sh
+To allow Python to communicate with the HID device without root privileges, you need to configure udev rules.
+
+1. Copy the rules file:
+
+```bash
 sudo cp 99-logitech-mx_master_4.rules /etc/udev/rules.d/99-logitech-mx_master_4.rules
 ```
 
-Reload udev rules
-
-```sh
-sudo udevadm control --reload-rule
+2. Reload udev rules:
+```bash
+sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
 
-Add user to group input
+3. Ensure your user is in the `input` group (you may need to logout/login after this):
 
-```sh
+```bash
 sudo usermod -a -G input $USER
 ```
 
+## 2\. Systemd Service (Autostart)
 
-# Hyprland integration
+Instead of using `exec-once` in Hyprland (which doesn't handle crashes well), use a systemd user service.
 
-Clone the repository
+1. Create the service file:
 
-```sh
-mkdir ~/.config/hypr/scripts
-cd ~/.config/hypr/scripts
-git clone https://github.com/MyrikLD/mx4hyprland.git
-chmod 700 $HOME/.config/hypr/scripts/mx4hyprland/start.sh
+```bash
+mkdir -p ~/.config/systemd/user/
+nano ~/.config/systemd/user/mx-haptics.service
 ```
 
+2. Paste the following configuration (adjust `WorkingDirectory` to where you cloned the repo):
 
-Add `start.sh` script to hyprland configuration
+```bash
+[Unit]
+Description=MX Master Haptic Daemon
+After=graphical-session.target
 
-    ~/.config/hypr/hyprland.conf
+[Service]
+Type=simple
+# REPLACE THIS with your actual path!
+WorkingDirectory=/home/YOUR_USER/path/to/master4
+ExecStart=/usr/bin/uv run daemon.py
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
 ```
-# Autostart for MX Master 4 haptic feedback
-exec-once = $HOME/.config/hypr/scripts/mx4hyprland/start.sh
+
+3. Enable and start the service:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now mx-haptics.service
 ```
 
-Log out and log in
+4. Check status:
 
+```bash
+systemctl --user status mx-haptics.service
+```
+
+## 3\. Troubleshooting
+
+If you see "Permission denied" errors in the logs:
+
+1.  Check if the udev rules are applied.
+2.  Check if your user is in the `input` group.
+3.  Try restarting the computer.
