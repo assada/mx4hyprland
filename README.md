@@ -1,5 +1,7 @@
 # MX Master 4 Hyprland Integration
 
+> ## Check [C++ Version](https://github.com/assada/mx4hyprland/tree/cpp)
+
 A robust, asynchronous Python daemon that integrates the Logitech MX Master 4 mouse with Hyprland window manager. It provides haptic feedback on window focus changes and exposes an IPC socket for controlling haptics from external scripts, terminals, or other applications.
 
 ## Features
