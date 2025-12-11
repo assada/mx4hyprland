@@ -59,7 +59,7 @@ class MXMaster4:
             path = device_path or cls._find_bluetooth_path()
             if path:
                 return cls(connection_type=ConnectionType.BLUETOOTH, path=path)
-        
+
         # This part of the original code is unreachable if connection_type is None,
         # but kept for consistency if a specific type is requested and not found.
         if connection_type:
@@ -102,7 +102,7 @@ class MXMaster4:
                 if MX_MASTER_4_BLUETOOTH_NAME in name:
                     with open(uevent_path, 'r') as f:
                         uevent = f.read().upper()
-                    
+
                     vid_hex = f"{LOGITECH_VID:04X}"
                     pid_hex = f"{MX_MASTER_4_BLUETOOTH_PID:04X}"
                     unpadded_id = f"HID_ID=0005:{vid_hex}:{pid_hex}"
@@ -116,28 +116,38 @@ class MXMaster4:
             logging.error(f"Error scanning for Bluetooth devices: {e}")
         return None
 
-    def __enter__(self):
+    def open(self) -> None:
+        if self.device:
+            return
+
         if self.connection_type == ConnectionType.BOLT:
             self.device = hid.Device(path=self.device_path.encode())
         elif self.connection_type == ConnectionType.BLUETOOTH:
             try:
                 self.device = open(self.device_path, "wb")
             except PermissionError:
-                logging.error(f"Permission denied for {self.device_path}. Run with 'sudo' or check udev rules.")
+                logging.error(f"Permission denied for {self.device_path}. Check udev rules.")
                 raise
             except Exception as e:
                 logging.error(f"Failed to open Bluetooth device: {e}")
                 raise
-        return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def close(self) -> None:
         if self.device:
             try:
                 self.device.close()
             except OSError as e:
-                # Ignore "No such device" error on close, as it's expected if disconnected
                 if e.errno != 19:
                     raise
+            finally:
+                self.device = None
+
+    def __enter__(self):
+        self.open()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def _write_bluetooth(self, data: bytes):
         if not self.device or self.device.closed:
@@ -157,11 +167,11 @@ class MXMaster4:
             if not (0 <= effect_id <= 15):
                 raise ValueError("Bolt effect_id must be between 0 and 15.")
             self._send_bolt_hidpp(FunctionID.Haptic, effect_id)
-        
+
         elif self.connection_type == ConnectionType.BLUETOOTH:
             if not (0 <= effect_id <= 15):
                 raise ValueError("Bluetooth effect_id must be between 0 and 15.")
-            
+
             payload = [0xFF, 0x0B, 0x4E, effect_id]
             padding = [0] * (19 - len(payload))
             packet = bytes([ReportID.Long] + payload + padding)
@@ -174,7 +184,7 @@ class MXMaster4:
     ) -> tuple[int, bytes]:
         if self.connection_type != ConnectionType.BOLT:
             raise NotImplementedError("_send_bolt_hidpp is only supported for Bolt connections.")
-        
+
         if not self.device or not isinstance(self.device, hid.Device):
              raise ConnectionError("Bolt device is not open.")
 
@@ -184,14 +194,14 @@ class MXMaster4:
 
         report_id = ReportID.Short if len(data) == 3 else ReportID.Long
         packet = pack(b">BBH%ds" % len(data), report_id, self.device_idx, feature_idx, data)
-        
+
         try:
             logging.debug(f"Writing to Bolt (HID++): {' '.join(f'{b:02x}' for b in packet)}")
             self.device.write(packet)
             response = self.device.read(20)
         except hid.HIDException as e:
             raise DeviceDisconnectedError from e
-        
+
         (r_report_id, r_device_idx, r_f_idx) = unpack(b">BBH", response[:4])
         if r_device_idx != self.device_idx:
             return None, None
@@ -203,9 +213,9 @@ def demo():
 
     parser = argparse.ArgumentParser(description="Demo script for MX Master 4 haptic effects.")
     parser.add_argument(
-        '--connection', 
-        type=str, 
-        choices=['bolt', 'bluetooth'], 
+        '--connection',
+        type=str,
+        choices=['bolt', 'bluetooth'],
         default='bolt',
         help="The connection type to use. Defaults to 'bolt', then tries 'bluetooth' if not found."
     )
@@ -223,7 +233,7 @@ def demo():
     with mx_master_4 as dev:
         num_effects = 16 # Both Bolt and Bluetooth will iterate 0-15
         logging.info(f"--- Demonstrating {num_effects} haptic effects for {dev.connection_type.upper()} connection ---")
-        
+
         for i in range(1, num_effects):
             logging.info(f"Playing effect {i}...")
             try:
@@ -232,7 +242,7 @@ def demo():
             except Exception as e:
                 logging.error(f"Failed to play effect {i}: {e}")
                 break
-        
+
         dev.send_haptic_feedback(effect_id=0) # Send effect 0 to turn off haptics
         logging.info("--- Demo finished ---")
 
