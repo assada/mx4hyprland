@@ -37,16 +37,21 @@ nano ~/.config/systemd/user/mx-haptics.service
 
 ```bash
 [Unit]
-Description=MX Master Haptic Daemon
+Description=MX Master Haptic Feedback Daemon
 After=graphical-session.target
+Wants=graphical-session.target
 
 [Service]
 Type=simple
 # REPLACE THIS with your actual path!
 WorkingDirectory=/home/YOUR_USER/path/to/master4
-ExecStart=/usr/bin/uv run daemon.py
-Restart=always
+ExecStart=/usr/bin/uv run watch.py
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=on-failure
 RestartSec=3
+TimeoutStopSec=5
+KillMode=mixed
 Environment=PYTHONUNBUFFERED=1
 
 [Install]
