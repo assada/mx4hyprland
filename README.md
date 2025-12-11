@@ -1,158 +1,125 @@
-# MX Master 4 Hyprland Integration
+# MX4Hyprland
 
-A robust, asynchronous Python daemon that integrates the Logitech MX Master 4 mouse with Hyprland window manager. It provides haptic feedback on window focus changes and exposes an IPC socket for controlling haptics from external scripts, terminals, or other applications.
+Haptic feedback daemon for Logitech MX Master 4 mouse with Hyprland integration.
 
 ## Features
 
-- **Zero-Latency Architecture:** Fully asynchronous event loop using `asyncio`.
-- **Hyprland Integration:** Listens to socket events for immediate feedback on window focus changes.
-- **IPC Socket Server:** Control mouse haptics from any shell script, keybind, or application via Unix Domain Socket.
-- **Protocol Support:** HID++ communication via Bluetooth or Logi Bolt receiver.
-- **JSON Configuration:** Map any Hyprland event to haptic effects with granular argument matching.
+- **Modern C++23** with RAII and `std::jthread`
+- **TOML configuration** for better readability
+- **Hyprland IPC integration** for window events
+- **Custom IPC server** for manual haptic triggers
+- **Support for both Bolt and Bluetooth** connections
 
-## Requirements
+## Building
 
-- Python 3.12+
-- Logitech MX Master 4 mouse
-- Hyprland window manager
-- `hid` and `asyncio` Python library
+### Requirements
 
-## Installation
+- C++23 compatible compiler (GCC 13+, Clang 17+)
+- Meson >= 1.0.0
+- Ninja
+- hidapi
+- toml++ (fetched automatically if not found)
 
-1. Clone the repository:
+### Build
+
 ```bash
-git clone https://github.com/assada/mx4hyprland
-cd mx4hyprland
+meson setup build --buildtype=release
+meson compile -C build
 ```
 
-2. Install dependencies using uv:
+### Install
+
 ```bash
-uv sync
+meson install -C build
 ```
 
-Or using pip:
-```bash
-pip install hid asyncio
+## Configuration
+
+Configuration file is searched in:
+1. `$XDG_CONFIG_HOME/mx4hyprland/config.toml`
+2. `./config.toml`
+
+### Example config.toml
+
+```toml
+# Default haptic effect for events not explicitly configured
+# default_effect = 1
+
+[events]
+activewindowv2 = 1
+workspace = 2
+openwindow = 3
+closewindow = 4
+fullscreen = 5
+
+[events.openlayer]
+default = 1
+
+[events.openlayer.args]
+swaync-notification-window = 10
+rofi = 6
+
+[events.closelayer]
+default = 1
+
+[events.closelayer.args]
+swaync-notification-window = 11
 ```
+
+### Haptic Effects
+
+| ID | Description |
+|----|-------------|
+| 0  | Stop/Off    |
+| 1-15 | Various haptic patterns |
 
 ## Usage
 
-### Running the Daemon
+```bash
+# Run with default config
+mx4hyprland
 
-It is recommended to run the application as a user systemd service (see INSTALL.md).
+# Specify config file
+mx4hyprland -c /path/to/config.toml
 
-To run manually for debugging:
+# Enable debug logging
+mx4hyprland -l debug
+```
+
+### Signals
+
+- `SIGHUP` - Reload configuration
+- `SIGTERM/SIGINT` - Graceful shutdown
+
+### Manual IPC
+
+Send haptic effect via Unix socket:
 
 ```bash
-uv run watch.py
+echo "5" | nc -U $XDG_RUNTIME_DIR/mx4hyprland.sock
 ```
 
-### Command Line Arguments
+## Systemd Service
 
-| Argument | Short | Description |
-|----------|-------|-------------|
-| `--config` | `-c` | Path to config file |
-| `--log-level` | `-l` | Log level: `debug`, `info`, `warning`, `error` (default: `info`) |
+Create `~/.config/systemd/user/mx-haptics.service`:
+
+```ini
+[Unit]
+Description=MX Master 4 Haptic Feedback Daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/mx4hyprland
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+```
+
+Enable and start:
 
 ```bash
-uv run watch.py --log-level debug
-uv run watch.py -c /path/to/custom/config.json -l debug
+systemctl --user enable --now mx-haptics.service
 ```
-
-### Configuration
-
-The daemon loads configuration from (in order of priority):
-1. Path specified via `--config` argument
-2. `~/.config/mx4hyprland/config.json` (XDG standard)
-3. `config.json` in the project directory
-
-If no config is found, the daemon runs without haptic events (IPC still works).
-
-#### Config Format
-
-```json
-{
-	"default_effect": null,
-	"events": {
-		"activewindowv2": 1,
-		"workspace": 2,
-		"openwindow": 3,
-		"closewindow": 4,
-		"fullscreen": 5,
-		"openlayer": {
-			"default": 1,
-			"args": {
-				"swaync-notification-window": 10,
-				"rofi": 6
-			}
-		},
-		"closelayer": {
-			"default": 1,
-			"args": {
-				"swaync-notification-window": 11
-			}
-		}
-	}
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `default_effect` | Effect ID for unlisted events. `null` disables it |
-| `events` | Dictionary of Hyprland event names |
-
-Event values can be:
-- **Integer**: Direct effect ID (e.g., `"workspace": 2`)
-- **Object**: Granular control with `default` and `args` for specific event arguments
-
-#### Hyprland Events
-
-Common events you can configure:
-- `activewindowv2` - Window focus changed
-- `workspace` - Workspace switched
-- `openwindow` / `closewindow` - Window opened/closed
-- `fullscreen` - Fullscreen toggled
-- `openlayer` / `closelayer` - Layer opened/closed (notifications, rofi, etc.)
-- `focusedmon` - Monitor focus changed
-
-See [Hyprland Wiki](https://wiki.hyprland.org/IPC/) for full event list.
-
-### External Control (IPC)
-
-Once the daemon is running, you can trigger haptic feedback from anywhere using `socat` or `nc` (netcat).
-
-Socket location: `$XDG_RUNTIME_DIR/mx4hyprland.sock`
-
-```bash
-echo "1" | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/mx4hyprland.sock
-```
-
-#### Using with Hyprland Binds
-
-```bash
-bind = SUPER, 1, workspace, 1
-bind = SUPER, 1, exec, echo "1" | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/mx4hyprland.sock
-```
-
-### Signal Handling
-
-| Signal | Action |
-|--------|--------|
-| `SIGHUP` | Reload configuration without restart |
-| `SIGTERM` | Graceful shutdown |
-| `SIGINT` | Graceful shutdown (Ctrl+C) |
-
-```bash
-pkill -HUP -f watch.py
-pkill -TERM -f watch.py
-```
-
-## Based on
-
-1. https://github.com/mfabijanic/mx4hyprland/tree/feature/mx4-bluetooth
-2. https://github.com/MyrikLD/mx4hyprland
-3. https://github.com/mfabijanic/hyprlogi
-
-## License
-
-MIT

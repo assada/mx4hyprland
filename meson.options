@@ -1,0 +1,2 @@
+option('user-install', type: 'boolean', value: false,
+       description: 'Install for current user (~/.local) instead of system-wide')

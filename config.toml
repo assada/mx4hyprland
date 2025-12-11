@@ -1,0 +1,24 @@
+# MX4Hyprland Configuration
+
+# Default haptic effect for events not explicitly configured
+# default_effect = 1
+
+[events]
+activewindowv2 = 1
+workspace = 2
+openwindow = 3
+closewindow = 4
+fullscreen = 5
+
+[events.openlayer]
+default = 1
+
+[events.openlayer.args]
+swaync-notification-window = 10
+rofi = 6
+
+[events.closelayer]
+default = 1
+
+[events.closelayer.args]
+swaync-notification-window = 11
