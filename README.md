@@ -1,11 +1,11 @@
 # MX4Hyprland
 
+> [python version](https://github.com/assada/mx4hyprland/tree/main)
+
 Haptic feedback daemon for Logitech MX Master 4 mouse with Hyprland integration.
 
 ## Features
 
-- **Modern C++23** with RAII and `std::jthread`
-- **TOML configuration** for better readability
 - **Hyprland IPC integration** for window events
 - **Custom IPC server** for manual haptic triggers
 - **Support for both Bolt and Bluetooth** connections
